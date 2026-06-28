@@ -40,21 +40,27 @@ Thumbs.db
 .idea/
 .vscode/
 
-# === Projects data ===
-# Individual project work (including their heavy session data) lives here.
-# To avoid a huge monorepo, Projects/ are ignored by default.
-# Options:
-# - Init separate git inside specific Projects/<name>/ if you want per-project history.
-# - Or explicitly `git add Projects/specific-project` for lightweight ones.
-# - Or track only their .grok/ subdirs if desired (uncomment below).
-Projects/
+# === Projects ===
+# Your Grok projects live here and can be versioned in this same grok-build repo.
+# (We are grouping everything in one repo as requested - no flood of separate repos.)
 
-# Optional: track project Grok harness metadata only
-# !Projects/*/.grok/
-# !Projects/*/.grok/config.toml
-# !Projects/*/.grok/AGENTS.md
-# Projects/*/.grok/sessions/
-# Projects/*/.grok/usage-data/
+# Ignore heavy generated / transient data inside projects
+Projects/**/__pycache__/
+Projects/**/.git/
+Projects/**/sessions/
+Projects/**/usage-data/
+Projects/**/active_sessions*
+Projects/**/*.log
+Projects/**/*.bak
+Projects/**/terminals/
+Projects/**/raw/
+Projects/**/build/
+Projects/**/dist/
+
+# Track the actual project work (code, docs, handoffs, project-local .grok/, AGENTS.md, etc.)
+# You can still be selective when staging:
+#   git add Projects/Jarvis2/jarvis2_app/ Projects/Jarvis2/handoffs/ Projects/Jarvis2/.grok/ ...
+!Projects/
 
 # === Large or refreshable libraries ===
 # Library corpora can be large; track metadata + important files.

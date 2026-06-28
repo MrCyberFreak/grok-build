@@ -1,19 +1,28 @@
 ---
 name: backup-config
-description: Back up / commit / push the global config (GROK_HOME) - new or changed skills, hooks, commands, agents, memory, or settings. Use when the user says 'back up my (global) config', 'commit the global config', 'save my new skills/hooks', or at session end to persist config artifacts. NOT for backing up a normal project repo, or for syncing the capabilities block.
+description: Back up / commit / push the **global Grok harness** (in the grok-build repo root) - new/changed skills, hooks, .grok/ config, agents, memory, or settings. Use when the user says 'back up my (global) config', 'commit the global config', 'save my new skills/hooks', or at session end to persist harness artifacts. **Never** for project work (use per-project handoff or safe-commit). The global repo is the one at X:\Grok_Build (grok-build on GitHub).
 allowed-tools: Bash, Read
 ---
 
-Back up the **global config repo** (`$GROK_HOME` = `X:\Grok_Build\Global`)
-safely: summarize what drifted, **review and selectively stage**, scan the staged
-diff for secrets, then commit and push. This is config-repo only — project backups
-have their own per-project "Backup" command and are out of scope.
+Back up the **global Grok harness** (in the grok-build Git repo at the workspace root)
+safely: summarize what drifted **under .grok/**, **review and selectively stage only harness
+paths**, scan the staged diff for secrets, then commit and push **only to the global grok-build
+repo**. 
+
+**Project work must never land here** — use the project's own repo via /handoff or safe-commit.
+This skill is global-harness only.
 
 ## The hard rule (state it first, enforce it throughout)
 
+**Only the global harness repo.** Before any git command, resolve the repo root and
+assert it is the workspace root that contains `.grok/` (the grok-build remote).
+If you are inside a `Projects/<name>/` worktree, **STOP** and tell the user to use
+the project flow instead.
+
 **The global repo routinely carries UNRELATED uncommitted changes from other
 sessions.** NEVER blind-`git add -A` by default. Default to a **reviewed, selective
-stage**: show the user exactly which paths will be added and let them confirm.
+stage** limited to `.grok/` paths: show the user exactly which paths will be added
+and let them confirm.
 `git add -A` is an explicit opt-in the user must ask for, never the silent default.
 
 **Never push if anything secret-shaped is staged.** Per the global security rule,
@@ -21,90 +30,83 @@ scan the staged diff first; on any hit, STOP and report — do not commit or pus
 
 ## Procedure
 
-### 1. Summarize the drift
-Work in the config repo. From `$GROK_HOME` (resolve it; fall back to
-`X:\Grok_Build\Global`):
+### 1. Confirm we are in the global harness repo + summarize drift
+Resolve the current repo root:
 
 ```
-git -C "$GROK_HOME" status --short
-git -C "$GROK_HOME" diff --stat
+git rev-parse --show-toplevel
 ```
 
-Read the output. Group the changed/untracked paths by area so the user sees the
-shape of the backup at a glance:
+If this toplevel is inside a `Projects/<name>` (or matches a project worktree), **STOP**
+and route the user to project-specific flows (`/handoff`, `/safe-commit`).
 
-- **skills/** — new or edited `skills/<name>/SKILL.md` and helpers
-- **hooks/** — `hooks/*.ps1`
-- **commands/** — `commands/*.md`
-- **agents/** — `agents/*.md`, `agents/tools/*`
-- **memory/** — `memory/*.md` and the memory index
-- **settings / docs** — `settings.json`, `CLAUDE.md`, `CLAUDE.template.md`, `AGENTS.md`
-- **other / unrelated** — anything that looks like it belongs to a different task
+The global root must be `X:\Grok_Build` (contains `.grok/`). Set:
 
-Call out the **other / unrelated** group explicitly — those are the changes you must
-not sweep in without asking.
+```
+$GROK_ROOT = "X:\Grok_Build"
+```
+
+Then:
+
+```
+git -C $GROK_ROOT status --short -- .grok/
+git -C $GROK_ROOT diff --stat -- .grok/
+```
+
+Read the output. Group **only** changes under .grok/ :
+
+- **.grok/skills/** — new or edited skills
+- **.grok/hooks/** — hooks
+- **.grok/agents/** — agents
+- **.grok/config.toml**, **.grok/AGENTS.md**, **.grok/rules/**, **.grok/memory/**
+- **.grok/** other (library updates, etc.)
+
+Ignore anything outside .grok/ (that's project drift or other — never stage it here).
+
+Call out anything outside .grok/ explicitly and refuse to include it.
 
 ### 2. Stage selectively (reviewed, not blind)
-Propose the exact set of paths to stage — the groups from step 1 that belong to this
-backup. Stage them by path, e.g.:
+Propose **only .grok/ paths**. Example (use $GROK_ROOT = "X:\Grok_Build"):
 
 ```
-git -C "$GROK_HOME" add skills/ hooks/ commands/ agents/ memory/ AGENTS.md
+git -C $GROK_ROOT add -- .grok/skills/ .grok/hooks/ .grok/agents/ .grok/config.toml .grok/AGENTS.md .grok/rules/ .grok/memory/
 ```
 
-Only run `git -C "$GROK_HOME" add -A` if the user **explicitly** opts in to
-backing up everything. Then show what is staged:
+**Never** use `git add -A` or paths outside `.grok/`. Show:
 
 ```
-git -C "$GROK_HOME" diff --cached --stat
+git -C $GROK_ROOT diff --cached --stat -- .grok/
 ```
 
 ### 3. Scan the staged diff for secrets (gate before commit)
-Read the full staged diff and check it for credential-shaped content **before**
-committing:
-
 ```
-git -C "$GROK_HOME" diff --cached
+git -C $GROK_ROOT diff --cached -- .grok/
 ```
 
-Look for: API keys / tokens (e.g. `sk-`, `ghp_`, `xoxb-`, AWS `AKIA…`, bearer
-tokens, long base64/hex secrets), private-key blocks (`BEGIN … PRIVATE KEY`), and
-staged credential files (`*.key`, `*.pem`, `.env`, `*.credentials.json`). Also check
-the list of staged files for those filename patterns:
+Scan for secrets as before (keys, tokens, etc.). If any hit, STOP.
 
+Also:
 ```
-git -C "$GROK_HOME" diff --cached --name-only
+git -C $GROK_ROOT diff --cached --name-only -- .grok/
 ```
-
-**If anything looks like a real secret, STOP.** Do not commit or push. Report the
-file and line, and let the user remediate (unstage, move the secret to SecretStore,
-add to `.gitignore`). Distinguish real secrets from obvious placeholders
-(`.env.example`, `<your-token-here>`, test fixtures) — flag, don't false-alarm, but
-when in doubt stop and ask.
 
 ### 4. Commit
-If the scan is clean, propose a descriptive commit message grouped by area, e.g.
-`Global config: add backup-config skill; register in AGENTS.md`. If the user passed a
-message (`$ARGUMENTS`), use it; otherwise generate one from the grouped summary.
-Commit on the user's approval:
+```
+git -C $GROK_ROOT commit -m "<message>" -- .grok/...
+```
 
-```
-git -C "$GROK_HOME" commit -m "<message>"
-```
+Commit as the user, no AI attribution.
 
 ### 5. Push and report
 ```
-git -C "$GROK_HOME" push
-git -C "$GROK_HOME" rev-parse --short HEAD
+git -C $GROK_ROOT push
+git -C $GROK_ROOT rev-parse --short HEAD
 ```
 
-Report: the staged groups, the commit message, the push result (branch + remote),
-and the pushed commit hash. If the push failed (e.g. needs a pull/rebase first),
-report the error verbatim and stop — don't force anything.
+Report what was pushed to the **grok-build** remote only.
 
 ## When NOT to use this skill
-- **Backing up a normal project repo** — use that project's own "Backup" command /
-  flow; it runs from the project root, not `$GROK_HOME`.
-- **Resolving submodule / nested-`.git` / gitlink issues** — out of scope here.
-- **Editing config content** (writing skills, fixing settings) — this skill only
-  backs up what already exists on disk.
+- **Project work** — use the project's repo via `/handoff`, `/safe-commit`, etc.
+- **Anything outside .grok/** at the workspace root — refuse it.
+- **Resolving submodules or gitlink issues** — out of scope.
+- **Editing** — this skill only backs up existing changes (use other flows to edit).

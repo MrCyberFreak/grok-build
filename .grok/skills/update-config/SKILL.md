@@ -33,7 +33,9 @@ Install an **approved** harness change into `GROK_HOME` (`X:\Grok_Build\.grok`).
 2. Read the target file(s) and plan the minimal edit.
 3. Apply the edit (prefer hook/lint over prose rule when enforceable).
 4. If hooks changed, verify JSON is valid.
-5. Offer `/backup-config` or a selective git commit of only the paths you touched.
+5. Offer `/backup-config` (it will target only the grok-build global repo) or a selective
+   `git commit -- <paths>` of only the harness paths touched. Confirm the current git
+   toplevel is the global workspace root before any commit.
 
 ## Grok mapping (Claude equivalents)
 

@@ -91,6 +91,8 @@ Enforced by `config.toml` deny rules + `hooks/path-guard.ps1` + this rule. In Cu
 
 **Prior art:** `/already-solved` + `skill-scout` + search `.grok/agents/` and `.grok/skills/`. For "did I already build this?" search `X:\Grok_Build\Projects\` and GitHub.
 
+**Project repositories:** Every project under `Projects/<name>/` has its **own independent GitHub repository** (e.g. `github.com/MrCyberFreak/<project-name>`). Push that project's code, handoffs/, project .grok/, AGENTS.md, etc. exclusively to its own repo. The `grok-build` repo is only for the global harness (`.grok/`, agents, skills, hooks, rules, etc.). Never mix project work into the global repo.
+
 **Stay in the active project.** Sibling dirs under `Projects\` are off-limits unless that project IS the CWD. Reuse other code via `_ref/` clones.
 
 **Leave foreign drift alone.** Don't edit uncommitted changes from other sessions.

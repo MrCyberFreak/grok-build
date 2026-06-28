@@ -12,9 +12,9 @@ fragile inline one-liner every time. It does **not** push, merge, or open a PR.
 
 ## Hard rules (state them first, hold to them)
 
-- **Project repos only. REFUSE the global config repo.** If the repo root is
-  `$GROK_HOME` (`X:\Grok_Build\Global`), STOP and route to **`/backup-config`** -
-  that flow reviews + pushes the config. This skill never touches the config repo.
+- **Project repos only. REFUSE the global harness repo.** If the repo root is
+  the workspace root containing `.grok/` as the harness (i.e. the grok-build repo),
+  STOP and route to **`/backup-config`**. This skill is for project repos only.
 - **Never blind-delete `.git/index.lock`.** Remove it ONLY when there is no live `git.exe`
   AND its mtime is older than ~30s. Otherwise wait and re-check - a live git owns it.
 - **Never `git add -A`. Stage by explicit path only.** "My files" = paths created/edited in
@@ -38,16 +38,15 @@ fragile inline one-liner every time. It does **not** push, merge, or open a PR.
 
 ## Procedure
 
-### 1. Confirm a project git repo (and refuse the config repo)
-Resolve the repo root from the working directory:
+### 1. Confirm a project git repo (and refuse the global harness repo)
+Resolve the repo root:
 ```
 git rev-parse --is-inside-work-tree
 git rev-parse --show-toplevel
 ```
-If it is not a work tree, STOP and say so. If the toplevel equals `$GROK_HOME`
-(`X:\Grok_Build\Global`), STOP and route to **`/backup-config`**. Use the resolved root as
-`<repo>` (an absolute path) for every command below - the Bash tool's cwd resets between
-calls, so never rely on cwd; pass paths explicitly.
+If not a work tree, STOP. If the toplevel is the workspace root that contains the
+`.grok/` harness (the grok-build repo), STOP and tell the user to use `/backup-config`
+instead. Use the resolved project root as `<repo>`.
 
 ### 2. Stale-lock guard (never blind-delete)
 Check for a stale `.git/index.lock` with the bundled guard (report-only first):
