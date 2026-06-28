@@ -1,0 +1,69 @@
+<#
+  refresh_libraries.ps1
+  Weekly refresh of the global doc-library mirrors under
+  X:\Claude_Code\Global\library\<product>\<product>.md
+
+  Runs Claude Code headless, SCOPED to web + file tools only (no Bash, no agent
+  spawning, NO permission bypass). For each product folder that has a _meta.json,
+  it re-fetches that library's captured_urls and rebuilds the mirror with today's
+  date. Registered as the "Claude_LibraryRefresh" weekly scheduled task.
+
+  Usage:
+    pwsh -File refresh_libraries.ps1            # real refresh
+    pwsh -File refresh_libraries.ps1 -DryRun    # check prerequisites only
+#>
+param([switch]$DryRun)
+
+$ErrorActionPreference = 'Stop'
+$env:CLAUDE_CONFIG_DIR = 'X:\Claude_Code\Global'
+$libRoot = 'X:\Claude_Code\Global\library'
+$log     = Join-Path $libRoot '_refresh.log'
+
+function Log($msg) {
+  "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))  $msg" | Tee-Object -FilePath $log -Append | Out-Null
+}
+
+if (-not (Test-Path $libRoot)) { Log "library root missing: $libRoot - nothing to refresh"; return }
+
+$products = Get-ChildItem -Path $libRoot -Directory |
+            Where-Object { Test-Path (Join-Path $_.FullName '_meta.json') }
+Log "=== refresh start - $($products.Count) librar(ies): $($products.Name -join ', ') ==="
+
+$haveClaude = [bool](Get-Command claude -ErrorAction SilentlyContinue)
+if ($DryRun) {
+  Log "DryRun: claude on PATH = $haveClaude. Exiting without refreshing."
+  return
+}
+
+# --- Deterministic curl rebuild for the LARGE mirrors (claude, claude-code) ---
+# These two are too big for the inline-WebFetch headless path (it has repeatedly
+# failed to reach them), so they are rebuilt verbatim from their .md endpoints by
+# build_doc_mirror.ps1. The headless WebFetch pass below then handles the rest.
+$builder = Join-Path $PSScriptRoot 'build_doc_mirror.ps1'
+foreach ($big in @('claude-code','claude')) {
+  if ((Test-Path (Join-Path $libRoot "$big\_meta.json")) -and (Test-Path $builder)) {
+    Log "deterministic rebuild: $big (build_doc_mirror.ps1)..."
+    try { & $builder -Product $big 2>&1 | Tee-Object -FilePath $log -Append | Out-Null; Log "deterministic rebuild: $big done." }
+    catch { Log "deterministic rebuild: $big FAILED - $($_.Exception.Message)" }
+  }
+}
+
+if (-not $haveClaude) { Log "ERROR: 'claude' not found on PATH - skipping the WebFetch pass for remaining libraries."; return }
+
+# Scoped tool allowlist: web fetch + local file tools only. Anything else (Bash,
+# Agent, MCP, etc.) is NOT allowed, so the unattended run cannot take arbitrary
+# actions - it can only fetch docs and rewrite the library files.
+$allowed = 'WebFetch,WebSearch,Read,Write,Edit,Glob,Grep'
+
+$prompt = @'
+Refresh the offline doc-library mirrors under X:\Claude_Code\Global\library\. Do NOT spawn subagents; fetch directly with WebFetch. SKIP the folders `claude` and `claude-code` entirely - they are already rebuilt deterministically by build_doc_mirror.ps1 before you run; do not touch them. For EACH OTHER subfolder that contains a _meta.json:
+1. Read _meta.json and the existing <product>.md.
+2. Re-fetch the URLs listed in captured_urls and rebuild <product>.md in the SAME format: header with today's date, a table of contents, each section prefixed by `<!-- source: URL (fetched <today>) -->`. Set last_updated to today's date in both the header and _meta.json.
+3. Keep the SAME coverage - do NOT pull pending_urls_or_sections. Just freshen what is already captured.
+4. If a page now fails to fetch, keep its prior content and note the failure.
+Write the files back as UTF-8. Then print one line per product: name, pages refreshed, KB size, and any failures.
+'@
+
+Log "invoking claude headless (scoped: $allowed)..."
+& claude -p $prompt --permission-mode acceptEdits --allowedTools $allowed 2>&1 | Tee-Object -FilePath $log -Append
+Log "=== refresh end (exit $LASTEXITCODE) ==="

@@ -1,0 +1,118 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/session-menu.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -X utf8 X:/Grok_Build/.grok/hooks/check_agents.py --fail-only"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/prior-art-reminder.ps1"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/build-verify-gate.ps1"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/open-insights-report.ps1"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/propagate_nudge.ps1"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/jarvis-voice.ps1"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|StrReplace|Write|search_replace|write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/propagate_record.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|StrReplace|Write|search_replace|write|Shell|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/build-verify-record.ps1"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Shell|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/scan-git-push.ps1",
+            "if": "Bash(git push*)"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|StrReplace|Write|search_replace|write|Delete|delete|Read|Grep|Glob|list_dir",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/path-guard.ps1"
+          }
+        ]
+      },
+      {
+        "matcher": "Shell|Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File X:/Grok_Build/.grok/hooks/path-guard.ps1"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,99 @@
+{
+  "_README": [
+    "Credibility allowlist for the library currency-watch (Gate A). Tier is assigned",
+    "DETERMINISTICALLY from domain (suffix match) + optional author - never by letting",
+    "the model rate how credible the prose 'feels'. A new/unknown domain defaults to",
+    "Tier 3 (lead-only) and needs explicit human promotion here. This file is the single",
+    "biggest poisoning defense: edit it deliberately.",
+    "",
+    "Tier 0 = primary/official, source-of-truth for its own subject. [verbatim]-eligible;",
+    "         the only tier the Phase-2 auto-lane will ever auto-integrate.",
+    "Tier 1 = reputable named practitioner / named-author research. [secondary] ceiling",
+    "         unless it quotes a Tier-0 primary.",
+    "Tier 2 = reputable org blog WITHOUT a named author; higher novelty/corroboration bar.",
+    "Tier 3 = social / unvetted (X, Reddit, generic Medium/Substack/YouTube). LEAD-ONLY:",
+    "         a post here can only point the crawler at a Tier 0/1 source; it is never the",
+    "         citation itself.",
+    "Tier X = reject outright (content farms, known spam).",
+    "",
+    "MAINTENANCE: you (the user) own this list. The twice-weekly digest proposes new",
+    "domains it saw at Tier 3; you promote the good ones into Tier 0/1 here. Author match",
+    "lets a named expert on a shared platform (e.g. a Karpathy post on a generic host) earn",
+    "their tier. Seeded 2026-06-27 from the watch sources you approved; CONFIRM/TRIM the",
+    "Tier-1 indie blogs and add your own."
+  ],
+  "version": "2026-06-27",
+  "tiers": {
+    "0": {
+      "_label": "primary / official",
+      "domains": [
+        "anthropic.com",
+        "claude.com",
+        "code.claude.com",
+        "docs.anthropic.com",
+        "docs.claude.com",
+        "kaggle.com",
+        "newsroom.tiktok.com",
+        "ftc.gov",
+        "scrumguides.org",
+        "scrum.org",
+        "agilemanifesto.org"
+      ],
+      "authors": []
+    },
+    "1": {
+      "_label": "reputable named practitioner / named-author research",
+      "domains": [
+        "simonwillison.net",
+        "eugeneyan.com",
+        "lilianweng.github.io",
+        "hamel.dev",
+        "karpathy.github.io",
+        "karpathy.bearblog.dev",
+        "karpathy.ai",
+        "huyenchip.com",
+        "jalammar.github.io",
+        "addyosmani.com",
+        "arxiv.org"
+      ],
+      "authors": [
+        "Andrej Karpathy",
+        "Simon Willison",
+        "Eugene Yan",
+        "Lilian Weng",
+        "Hamel Husain",
+        "Chip Huyen",
+        "Jay Alammar",
+        "Addy Osmani"
+      ]
+    },
+    "2": {
+      "_label": "reputable org blog, no named author (higher bar)",
+      "domains": [],
+      "authors": []
+    },
+    "3": {
+      "_label": "social / unvetted - LEAD ONLY (never a citation)",
+      "domains": [
+        "x.com",
+        "twitter.com",
+        "nitter.net",
+        "reddit.com",
+        "news.ycombinator.com",
+        "ycombinator.com",
+        "youtube.com",
+        "youtu.be",
+        "medium.com",
+        "substack.com",
+        "dev.to",
+        "linkedin.com",
+        "threads.net",
+        "mastodon.social"
+      ],
+      "authors": []
+    }
+  },
+  "reject_domains": [
+    "_note: add known content farms / SEO-spam / scraped-mirror domains here; left empty so nothing is wrongly blacklisted on day one"
+  ]
+}

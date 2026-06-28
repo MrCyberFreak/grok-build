@@ -1,0 +1,18 @@
+{
+  "_comment": "Config + master toggle for the JARVIS auto-speak voice (the-voice faculty). No secret lives here - only the NAME of the PowerShell SecretStore secret holding the ElevenLabs API key. Read by jarvis-voice.ps1 (Stop hook) and elevenlabs-speak.ps1 (TTS engine). Set enabled=true to turn auto-speak on.",
+  "enabled": false,
+  "secret_name": "ElevenLabsApiKey",
+  "voice_id": "JBFqnCBsd6RMkjVDRZzb",
+  "voice_name": "George (warm refined British male)",
+  "model_id": "eleven_flash_v2_5",
+  "output_format": "mp3_44100_128",
+  "max_chars": 600,
+  "only_in_paths": [],
+  "voice_settings": {
+    "stability": 0.70,
+    "similarity_boost": 0.75,
+    "style": 0.0,
+    "use_speaker_boost": true,
+    "speed": 0.95
+  }
+}

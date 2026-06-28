@@ -1,0 +1,67 @@
+[ui]
+max_thoughts_width = 120
+fork_secondary_model = "grok-build"
+yolo = false
+compact_mode = false
+permission_mode = "ask"
+
+[cli]
+installer = "internal"
+
+[memory]
+enabled = true
+
+[marketplace]
+official_marketplace_auto_installed = true
+
+[[marketplace.sources]]
+name = "xAI Official"
+git = "https://github.com/xai-org/plugin-marketplace.git"
+
+[skills]
+paths = [
+    "X:/Grok_Build/.grok/skills",
+    "X:/Grok_Build/.grok/bundled/skills",
+]
+ignore = []
+disabled = []
+server_skill_dirs = []
+bundled_skill_dirs = []
+
+[permission]
+deny = [
+    "Read(C:/**)",
+    "Edit(C:/**)",
+    "Write(C:/**)",
+    "Delete(C:/**)",
+    "Read(X:/Claude_Code/**)",
+    "Edit(X:/Claude_Code/**)",
+    "Write(X:/Claude_Code/**)",
+    "Delete(X:/Claude_Code/**)",
+]
+
+[compat.cursor]
+skills = false
+rules = false
+agents = false
+mcps = false
+hooks = false
+
+[compat.claude]
+skills = false
+rules = false
+agents = false
+mcps = false
+hooks = false
+
+[mcp_servers.reddit]
+command = "cmd"
+args = [
+    "/c",
+    "X:/Grok_Build/.grok/scripts/reddit-mcp-launch.cmd",
+]
+enabled = true
+startup_timeout_sec = 60
+
+[models]
+default = "grok-build"

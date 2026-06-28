@@ -1,0 +1,70 @@
+# Grok Build - consolidated repo for harness, settings, agents, skills, hooks, rules and configuration history.
+# One repo for all Grok global changes over time (no proliferation of repos).
+
+# === Transient / runtime / large data (do not version) ===
+.grok/sessions/
+.grok/usage-data/
+.grok/active_sessions*
+.grok/active_sessions.lock
+.grok/tmp/
+.grok/downloads/
+.grok/logs/
+.grok/upload_queue/
+.grok/.last-*
+**/.tmp/
+**/*.log
+**/*.bak
+
+# === Caches and marketplace ===
+.grok/marketplace-cache/
+.grok/plugins/
+.grok/cache/
+.grok/models_cache.json
+.grok/tip_cursor.json
+.grok/slash-mru.json
+
+# === Secrets and credentials (use PowerShell SecretStore) ===
+**/*secret*
+**/*.key
+**/*.pem
+**/.env
+**/.credentials*
+**/*token*
+**/*password*
+
+# === IDE / OS noise ===
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+
+# === Projects data ===
+# Individual project work (including their heavy session data) lives here.
+# To avoid a huge monorepo, Projects/ are ignored by default.
+# Options:
+# - Init separate git inside specific Projects/<name>/ if you want per-project history.
+# - Or explicitly `git add Projects/specific-project` for lightweight ones.
+# - Or track only their .grok/ subdirs if desired (uncomment below).
+Projects/
+
+# Optional: track project Grok harness metadata only
+# !Projects/*/.grok/
+# !Projects/*/.grok/config.toml
+# !Projects/*/.grok/AGENTS.md
+# Projects/*/.grok/sessions/
+# Projects/*/.grok/usage-data/
+
+# === Large or refreshable libraries ===
+# Library corpora can be large; track metadata + important files.
+# Full refresh via scripts.
+.grok/library/*/
+!.grok/library/*/_meta.json
+!.grok/library/*/*.md   # keep core docs if small
+
+# === Other generated ===
+.grok/CHANGELOG.json   # if regenerated
+
+# Keep the harness core tracked (agents, skills, config, hooks, rules, etc.)
+# These are explicitly added in commits.

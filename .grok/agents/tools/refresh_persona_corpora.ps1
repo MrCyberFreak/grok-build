@@ -1,0 +1,228 @@
+<#
+  refresh_persona_corpora.ps1
+  Weekly "currency watch" for the curated person-corpora under
+  X:\Grok_Build\.grok\library\<person>\ that back the persona-advisor agents.
+
+  These are git-TRACKED person-corpora (boris / karpathy / garyvee), NOT the
+  regenerable doc-library caches that refresh_libraries.ps1 covers. The weekly
+  Claude_LibraryRefresh task does NOT touch them - this fills that gap.
+
+  For each present corpus it asks its expert agent to run "Mode B" (Build or
+  refresh the library): check the person's canonical sources for anything newer
+  than the corpus _meta.json last_updated, integrate it newest-wins while
+  preserving [verbatim]/[secondary]/[inference] confidence flags and provenance,
+  and update _meta.json + the transcripts manifest. A one-paragraph per-corpus
+  changelog is written to agents/tools/logs/persona-watch-<date>.md.
+
+  Runs Claude Code headless, scoped to an explicit least-privilege allowlist:
+  Agent (to invoke the expert agents' Mode B), WebSearch/WebFetch (pull sources),
+  Read/Write/Edit/Glob/Grep (rewrite corpus files), Bash (only if an agent needs
+  it for file housekeeping). NO permission bypass.
+
+  Registered as the "Claude_PersonaWatch" weekly scheduled task (Saturday 04:00,
+  staggered off Claude_LibraryRefresh which runs Sunday 04:00).
+
+  Usage:
+    pwsh -File refresh_persona_corpora.ps1            # real refresh
+    pwsh -File refresh_persona_corpora.ps1 -DryRun    # print the claude command it WOULD run, do not invoke
+#>
+param([switch]$DryRun)
+
+# --- environment hardening (per global rules) -------------------------------
+$ErrorActionPreference = 'Stop'
+# In PS 7.3+ a native command (claude/git) writing to stderr is promoted to a
+# TERMINATING error under 'Stop' - a benign banner would abort the run. Disable.
+$PSNativeCommandUseErrorActionPreference = $false
+# Python (if any agent shells into it) must run UTF-8; console is cp1252.
+$env:PYTHONUTF8 = '1'
+$env:CLAUDE_CONFIG_DIR = 'X:\Grok_Build\Global'
+
+# Long unattended web pass: don't let the 10-min background-wait cap truncate it.
+$env:CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS = '0'
+
+$globalRoot = 'X:\Grok_Build\Global'
+$libRoot    = Join-Path $globalRoot 'library'
+$logDir     = Join-Path $globalRoot 'agents\tools\logs'
+$runLog     = Join-Path $logDir '_persona-watch.log'
+$today      = (Get-Date).ToString('yyyy-MM-dd')
+$changelog  = Join-Path $logDir "persona-watch-$today.md"
+
+# The three curated person-corpora and the agent that owns each one's Mode B.
+$corpora = @(
+  @{ dir = 'boris';    agent = 'boris-expert'    },
+  @{ dir = 'karpathy'; agent = 'karpathy-expert' },
+  @{ dir = 'garyvee';  agent = 'garyvee-expert'  }
+)
+
+# --- logging ----------------------------------------------------------------
+# Ensure the log dir exists (it is runtime data; a .gitignore inside keeps the
+# changelogs out of version control even though agents/ is otherwise tracked).
+if (-not (Test-Path $logDir)) {
+  New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
+$logIgnore = Join-Path $logDir '.gitignore'
+if (-not (Test-Path $logIgnore)) {
+  # Runtime logs/changelogs are not config - never commit them.
+  [System.IO.File]::WriteAllText($logIgnore, "*`n!.gitignore`n", (New-Object System.Text.UTF8Encoding($false)))
+}
+
+function Log($msg) {
+  $line = "$((Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))  $msg"
+  # ASCII-only to the console (cp1252); the file is written UTF-8 by Tee.
+  Write-Output $line
+  $line | Tee-Object -FilePath $runLog -Append | Out-Null
+}
+
+# --- preflight heartbeat (written BEFORE the heavy command) -----------------
+# A silent failure then leaves a diagnosable cause in the log.
+Log "=== persona-watch start ($today) ==="
+
+if (-not (Test-Path $libRoot)) {
+  Log "ERROR: library root missing: $libRoot - nothing to refresh."
+  return
+}
+
+# Resolve which corpora are actually present (a dir created but without a
+# _meta.json - e.g. garyvee mid-build - is skipped gracefully).
+$present = @()
+$skipped = @()
+foreach ($c in $corpora) {
+  $dirPath  = Join-Path $libRoot $c.dir
+  $metaPath = Join-Path $dirPath '_meta.json'
+  if ((Test-Path $dirPath) -and (Test-Path $metaPath)) {
+    $present += $c
+  } else {
+    $reason = if (-not (Test-Path $dirPath)) { 'dir absent' } else { '_meta.json absent' }
+    $skipped += "$($c.dir) ($reason)"
+  }
+}
+
+Log ("corpora present: " + ($(if ($present) { ($present.dir -join ', ') } else { '(none)' })))
+if ($skipped.Count -gt 0) { Log ("corpora skipped: " + ($skipped -join ', ')) }
+
+# Resolve auth mode (log the MODE, never the secret).
+$authMode = if ($env:ANTHROPIC_API_KEY) { 'api-key (ANTHROPIC_API_KEY set)' } else { 'login/subscription (no API key env)' }
+Log "auth mode: $authMode"
+
+$haveClaude = [bool](Get-Command claude -ErrorAction SilentlyContinue)
+Log "claude on PATH: $haveClaude"
+
+if ($present.Count -eq 0) {
+  Log "No present corpora with a _meta.json - nothing to refresh. Exiting."
+  Log "=== persona-watch end (exit 0) ==="
+  return
+}
+
+# --- the headless prompt ----------------------------------------------------
+# Built from the corpora actually present, so a missing garyvee corpus is simply
+# not mentioned. Single-quoted here-string base + token substitution (no PS
+# interpolation surprises). ASCII-only content.
+$agentList = ($present | ForEach-Object { $_.agent }) -join ', '
+$corpusLines = ($present | ForEach-Object {
+  "- $($_.agent)  ->  library/$($_.dir)/  (last_updated lives in library/$($_.dir)/_meta.json)"
+}) -join "`n"
+
+$promptTemplate = @'
+You are running an unattended weekly "currency watch" on the curated person-corpora.
+
+For EACH of these expert agents, invoke that agent and have it run its documented
+"Mode B - Build or refresh the library":
+
+__CORPUS_LINES__
+
+For each agent's Mode B:
+1. Read that corpus's _meta.json and note its last_updated date.
+2. Check that person's canonical sources for anything published NEWER than last_updated
+   (Boris Cherny: @bcherny on X, the Claude Code best-practices doc, his interviews/talks;
+    Andrej Karpathy: his blog, @karpathy on X, his talks/podcasts;
+    Gary Vaynerchuk: his keynotes/DailyVee, The GaryVee Audio Experience podcast,
+    garyvaynerchuk.com, his socials).
+3. If you find something newer, fetch it and integrate it newest-info-wins. PRESERVE
+   provenance (a source URL on every claim) and the [verbatim]/[secondary]/[inference]
+   confidence flags exactly as the agent's contract requires. Never fabricate a quote to
+   fill a gap - leave it pending.
+4. Update that corpus's _meta.json (last_updated, captured counts, pending) and, where the
+   corpus has one, the transcripts manifest (e.g. library/garyvee/transcripts/manifest.json).
+5. If a corpus is already current (nothing newer than last_updated) or a source cannot be
+   reached, do NOT invent changes - just record that it was current / unreachable.
+
+Write all files back as UTF-8. Keep anything you PRINT to the console ASCII-only (no smart
+quotes, em-dashes, or emoji) - the console is cp1252.
+
+Do NOT git add, git commit, or git push anything. Refresh the local files only.
+
+Finally, WRITE a changelog to this exact path:
+  __CHANGELOG_PATH__
+It must contain one short paragraph per corpus (boris / karpathy / garyvee that ran),
+each stating: the corpus name, its prior last_updated, what (if anything) was newer and
+got integrated, and the new last_updated - or "already current" / "source unreachable".
+Write that file UTF-8.
+'@
+
+$prompt = $promptTemplate.
+  Replace('__CORPUS_LINES__', $corpusLines).
+  Replace('__CHANGELOG_PATH__', $changelog)
+
+# --- least-privilege tool allowlist (per global rules) ----------------------
+# Agent      : invoke the boris/karpathy/garyvee experts' Mode B
+# WebSearch  : discover newer sources
+# WebFetch   : pull source content
+# Read/Write/Edit/Glob/Grep : rewrite corpus files + _meta.json + manifest + changelog
+# NOTE: Bash is intentionally NOT allowed. This run fetches UNTRUSTED web content
+# unattended; a Bash tool would let a prompt-injection shell out and write
+# anywhere, defeating the --add-dir write-jail below. File housekeeping the agents
+# need is covered by Write/Edit/Glob/Grep within the jailed dirs.
+$allowed = 'Agent,WebSearch,WebFetch,Read,Write,Edit,Glob,Grep'
+
+# --- dry run: print the command, do NOT invoke -------------------------------
+if ($DryRun) {
+  Log "DryRun: claude on PATH = $haveClaude. NOT invoking claude."
+  Write-Output ''
+  Write-Output '----- claude command that WOULD run -----'
+  Write-Output "(cwd jailed to $libRoot)"
+  Write-Output "claude -p <prompt> --permission-mode acceptEdits --allowedTools $allowed --add-dir $libRoot --add-dir $logDir"
+  Write-Output ''
+  Write-Output '----- prompt -----'
+  Write-Output $prompt
+  Write-Output ''
+  Write-Output "----- changelog target: $changelog -----"
+  Log "=== persona-watch end (DryRun, exit 0) ==="
+  return
+}
+
+if (-not $haveClaude) {
+  Log "ERROR: 'claude' not found on PATH - aborting."
+  Log "=== persona-watch end (exit 1) ==="
+  return
+}
+
+# --- real run ---------------------------------------------------------------
+# Jail the model's file tools. claude uses its launch working directory as the
+# workspace root; the scheduled task leaves that empty (defaults to System32), so
+# pin it to $libRoot and grant exactly the two dirs this run legitimately writes:
+#   $libRoot  - the boris/karpathy/garyvee corpora + _meta.json + manifests
+#   $logDir   - the per-run changelog ($changelog) lives here, outside library\
+# A prompt-injection in fetched (untrusted) web content then cannot write an agent
+# .md, a CLAUDE.md, or a hook .ps1 anywhere outside those two trees.
+Log "invoking claude headless (agents: $agentList; scoped: $allowed; jailed to $libRoot + $logDir)..."
+Push-Location $libRoot
+try {
+  & claude -p $prompt --permission-mode acceptEdits --allowedTools $allowed --add-dir $libRoot --add-dir $logDir 2>&1 |
+    Tee-Object -FilePath $runLog -Append
+  $exit = $LASTEXITCODE
+} finally { Pop-Location }
+Log "=== persona-watch end (exit $exit) ==="
+
+# ---------------------------------------------------------------------------
+# OPTIONAL backup block - OFF BY DEFAULT. The user manages commits via the
+# project's backup skill (never a blind 'git add -A'); this task must NOT
+# auto-commit or auto-push. Uncomment ONLY if you deliberately want this run to
+# stage + commit the refreshed corpora under YOUR identity. It intentionally
+# stages only the three corpus dirs (never -A) and never pushes.
+# ---------------------------------------------------------------------------
+# Push-Location $globalRoot
+# try {
+#   git add library/boris library/karpathy library/garyvee
+#   git commit -m "Persona corpora: weekly Mode B refresh ($today)"
+#   # git push   # leave OFF - review before pushing
+# } finally { Pop-Location }
