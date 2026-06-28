@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Grok Chat History • Reconstructed</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+    
+    :root {
+      --bg: #0a0a0c;
+    }
+    
+    body { font-family: 'Inter', system_ui, sans-serif; }
+    .font-display { font-family: 'Space Grotesk', 'Inter', sans-serif; }
+
+    .chat-container {
+      scrollbar-width: thin;
+      scrollbar-color: #27272a #18181b;
+    }
+    
+    .message {
+      max-width: 75%;
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    .message.user { margin-left: auto; }
+    
+    .bubble {
+      padding: 14px 18px;
+      border-radius: 18px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    
+    .bubble.user {
+      background: #3b82f6;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+    
+    .bubble.assistant {
+      background: #18181b;
+      color: #e4e4e7;
+      border: 1px solid #27272a;
+      border-bottom-left-radius: 4px;
+    }
+
+    /* Debug to ensure messages are visible */
+    #messages-container {
+      border: 1px dashed #444;
+      min-height: 200px;
+    }
+    .message {
+      border: 1px dotted #333;
+      margin-bottom: 4px;
+    }
+    
+    .media-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+    
+    .media-item {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #111;
+      border: 1px solid #27272a;
+      cursor: pointer;
+      transition: transform 0.1s ease;
+    }
+    
+    .media-item:hover {
+      transform: scale(1.015);
+    }
+    
+    .media-item img, .media-item video {
+      width: 100%;
+      display: block;
+      max-height: 280px;
+      object-fit: cover;
+      background: #111;
+    }
+    
+    .media-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      font-size: 10px;
+      padding: 2px 8px;
+      background: rgba(0,0,0,0.75);
+      color: #aaa;
+    }
+    
+    .conv-item {
+      transition: all 0.1s ease;
+    }
+    
+    .conv-item:hover {
+      background-color: #18181b;
+    }
+    
+    .conv-item.active {
+      background-color: #18181b;
+      border-left: 3px solid #3b82f6;
+    }
+    
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .chat-header {
+      background: linear-gradient(to bottom, #0a0a0c, #111113);
+    }
+
+    .grok-tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      background: #27272a;
+      color: #71717a;
+      border-radius: 4px;
+    }
+
+    .speak-btn {
+      opacity: 0.65;
+      transition: opacity 0.1s ease;
+      font-size: 11px;
+      line-height: 1;
+    }
+    .speak-btn:hover {
+      opacity: 1;
+      color: #60a5fa;
+    }
+    .speak-btn.speaking {
+      color: #22c55e;
+      opacity: 1;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .lightbox {
+      animation: fadeIn 0.15s ease;
+    }
+
+    .msg-timestamp {
+      font-size: 10px;
+      color: #52525b;
+    }
+  </style>
+</head>
+<body class="bg-zinc-950 text-zinc-200">
+  <div class="flex h-screen overflow-hidden">
+    <!-- Sidebar -->
+    <div class="w-80 border-r border-zinc-800 flex flex-col bg-zinc-900">
+      <!-- Header -->
+      <div class="p-4 border-b border-zinc-800">
+        <div class="flex items-center gap-x-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center">
+            <i class="fa-solid fa-comments text-white text-xl"></i>
+          </div>
+          <div>
+            <div class="font-semibold text-lg tracking-tight font-display">Grok History</div>
+            <div class="text-[10px] text-zinc-500 -mt-0.5">RECONSTRUCTED FROM BACKUP</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="p-3 border-b border-zinc-800">
+        <div class="relative">
+          <i class="fa-solid fa-search absolute left-3 top-2.5 text-zinc-500"></i>
+          <input id="search-input" 
+                 type="text" 
+                 placeholder="Search conversations..." 
+                 class="w-full bg-zinc-950 border border-zinc-800 focus:border-zinc-700 pl-9 py-2 text-sm rounded-xl outline-none placeholder:text-zinc-500">
+        </div>
+        <div class="flex items-center gap-2 mt-2">
+          <label class="flex items-center gap-x-1.5 text-xs cursor-pointer">
+            <input type="checkbox" id="media-only" class="accent-blue-500">
+            <span class="text-zinc-400">Has media</span>
+          </label>
+          <div id="stats" class="ml-auto text-[10px] text-zinc-500"></div>
+        </div>
+      </div>
+
+      <!-- Projects / Agents -->
+      <div class="border-b border-zinc-800">
+        <div class="px-3 pt-3 pb-1 flex items-center justify-between">
+          <div class="section-title text-zinc-400 flex items-center gap-x-1.5">
+            <i class="fa-solid fa-users"></i>
+            <span>Projects / Agents</span>
+          </div>
+          <span id="proj-count" class="text-xs px-1.5 py-px rounded bg-zinc-800 text-zinc-400"></span>
+        </div>
+        <div id="projects-list" class="max-h-[138px] overflow-y-auto px-1 pb-1 text-sm custom-scroll"></div>
+      </div>
+
+      <!-- Conversations -->
+      <div class="flex-1 overflow-hidden flex flex-col">
+        <div class="px-3 pt-3 pb-1 flex items-center justify-between flex-shrink-0">
+          <div class="section-title text-zinc-400 flex items-center gap-x-1.5">
+            <i class="fa-solid fa-list"></i>
+            <span>Conversations</span>
+          </div>
+          <span id="conv-count" class="text-xs px-1.5 py-px rounded bg-zinc-800 text-zinc-400"></span>
+        </div>
+        
+        <div id="conversations-list" 
+             class="flex-1 overflow-y-auto px-1.5 pb-3 space-y-0.5 chat-container">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <div class="p-2 text-[10px] border-t border-zinc-800 text-zinc-500 flex items-center px-3">
+        <div>87 convs • 920 msgs • 94 media</div>
+        <button onclick="runUIVerification()" class="ml-auto text-[10px] px-1 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded">Verify</button>
+      </div>
+    </div>
+
+    <!-- Main Chat View -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Chat Header -->
+      <div id="chat-header" class="chat-header border-b border-zinc-800 px-5 py-3 flex items-center justify-between flex-shrink-0">
+        <div class="flex items-center gap-x-3 min-w-0">
+          <div id="chat-icon" class="w-8 h-8 rounded-lg bg-zinc-800 flex-shrink-0 flex items-center justify-center text-blue-400">
+            <i class="fa-solid fa-comment-dots"></i>
+          </div>
+          <div class="min-w-0">
+            <div id="chat-title" class="font-semibold text-lg truncate">Select a conversation</div>
+            <div id="chat-meta" class="text-xs text-zinc-500 flex items-center gap-x-2"></div>
+          </div>
+        </div>
+        <div class="flex items-center gap-x-2 text-sm">
+          <div id="tts-controls" class="hidden items-center gap-x-1 mr-1 pl-2 border-l border-zinc-700">
+            <input id="eleven-voice" type="text" value="JBFqnCBsd6RMkjVDRZzb" title="ElevenLabs Voice ID (from jarvis-voice.config.json: George - warm refined British male)"
+                   class="text-xs bg-zinc-800 border border-zinc-700 rounded px-1 py-0.5 w-40" onchange="saveElevenLabsVoice(this.value)">
+            <button onclick="showElevenLabsInfo()" title="ElevenLabs key loaded from PowerShell SecretStore (this session only)"
+                    class="px-1.5 py-1 text-xs rounded-lg bg-zinc-800 hover:bg-zinc-700" style="cursor:help">
+              🔑
+            </button>
+            <button onclick="playConversation()" title="Read entire conversation aloud with ElevenLabs"
+                    class="px-2 py-1 text-xs rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center gap-x-1">
+              <i class="fa-solid fa-play"></i>
+              <span class="hidden sm:inline">Read aloud</span>
+            </button>
+            <button onclick="stopSpeaking()" title="Stop speaking"
+                    class="px-2 py-1 text-xs rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center">
+              <i class="fa-solid fa-stop"></i>
+            </button>
+          </div>
+          <button onclick="exportCurrentConversation()" 
+                  class="px-3 py-1.5 text-xs rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center gap-x-1.5">
+            <i class="fa-solid fa-download"></i>
+            <span>Export JSON</span>
+          </button>
+          <button onclick="showRawData()" 
+                  class="px-3 py-1.5 text-xs rounded-lg bg-zinc-800 hover:bg-zinc-700 flex items-center gap-x-1.5">
+            <i class="fa-solid fa-code"></i>
+            <span>View Data</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div id="messages-container" 
+           class="flex-1 overflow-y-auto p-5 space-y-6 bg-[#0a0a0c] chat-container">
+        <div class="h-full flex items-center justify-center text-zinc-500" id="empty-state">
+          <div class="text-center">
+            <i class="fa-solid fa-comments text-4xl mb-3 opacity-30"></i>
+            <div>Select a conversation from the sidebar</div>
+            <div class="text-xs mt-1">If nothing appears after click, open F12 Console and report the logs</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer info -->
+      <div class="px-4 py-2 text-[10px] border-t border-zinc-800 bg-zinc-900 text-zinc-500 flex items-center justify-between text-xs">
+        <div>
+          Reconstructed • 
+          <span class="font-mono" id="footer-info"></span>
+        </div>
+        <div class="flex gap-x-3">
+          <span class="cursor-pointer hover:text-zinc-300" onclick="document.getElementById('projects-list').scrollIntoView({block:'center'})">View agents</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lightbox Modal -->
+  <div id="lightbox" class="hidden fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+    <div class="max-w-[94%] max-h-[94%] relative">
+      <button onclick="closeLightbox()" class="absolute -top-3 -right-3 w-8 h-8 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 rounded-full border border-zinc-700 text-xl leading-none">&times;</button>
+      <div id="lightbox-content" class="bg-zinc-950 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl"></div>
+    </div>
+  </div>
+
+  <script>
+    let DATA = null;
+    let currentConvId = null;
+    let filteredConvs = [];
+    let currentMessages = [];
+    let speechQueue = [];
+    // Key is injected at serve time from PowerShell SecretStore via launch_viewer.py
+    // Never stored in localStorage or prompted in the browser.
+    let elevenLabsApiKey = (typeof window !== 'undefined' && window.ELEVENLABS_API_KEY) || '';
+    let elevenLabsVoiceId = localStorage.getItem('elevenlabs_voice_id') 
+        || (window.DEFAULT_ELEVENLABS_VOICE_ID || 'JBFqnCBsd6RMkjVDRZzb'); // George (from jarvis-voice.config.json via launcher)
+
+    async function loadData() {
+      const res = await fetch('data.json');
+      DATA = await res.json();
+      console.log('Loaded reconstructed data', DATA);
+      
+      renderProjects();
+      renderConversations(DATA.conversations);
+      updateStats();
+      console.log('Initial load complete, conversations in DOM:', document.querySelectorAll('#conversations-list .conv-item').length);
+      
+      document.getElementById('footer-info').textContent = 
+        `${DATA.export_meta.generated_at ? new Date(DATA.export_meta.generated_at).toLocaleDateString() : ''}`;
+      
+      // Wire filters
+      document.getElementById('search-input').addEventListener('input', filterConversations);
+      document.getElementById('media-only').addEventListener('change', filterConversations);
+
+      // Hide TTS if browser doesn't support it
+      if (!('speechSynthesis' in window)) {
+        const tts = document.getElementById('tts-controls');
+        if (tts) tts.style.display = 'none';
+      } else {
+        // no longer using browser voices
+      }
+      
+      // load any saved ElevenLabs voice id into inputs if present
+      loadElevenLabsSettings();
+      
+      // Keyboard: / focuses search
+      document.addEventListener('keydown', e => {
+        if (e.key === '/' && document.activeElement.tagName === 'BODY') {
+          e.preventDefault();
+          document.getElementById('search-input').focus();
+        }
+        if (e.key.toLowerCase() === 'escape') {
+          closeLightbox();
+          stopSpeaking();
+        }
+      });
+    }
+
+    function updateStats() {
+      const totalMedia = Object.keys(DATA.asset_info || {}).length;
+      document.getElementById('stats').innerHTML = `${DATA.conversations.length} convs`;
+    }
+
+    function renderProjects() {
+      const container = document.getElementById('projects-list');
+      container.innerHTML = '';
+      const projs = DATA.projects || [];
+      document.getElementById('proj-count').textContent = projs.length;
+
+      projs.forEach(proj => {
+        const el = document.createElement('div');
+        el.className = `px-2.5 py-1.5 mx-1 rounded-lg flex gap-x-2 text-xs cursor-pointer hover:bg-zinc-800 conv-item`;
+        
+        const icon = proj.icon ? proj.icon.split(':').pop() : 'user';
+        el.innerHTML = `
+          <div class="w-5 h-5 flex-shrink-0 mt-px rounded bg-zinc-800 flex items-center justify-center text-[9px]">
+            <i class="fa-solid fa-${icon === 'sticky-note' ? 'sticky-note' : 'user'}"></i>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="font-medium truncate">${escapeHtml(proj.name)}</div>
+            ${proj.custom_personality ? 
+              `<div class="text-[10px] text-zinc-400 line-clamp-1">${escapeHtml(proj.custom_personality.slice(0, 70))}...</div>` : ''}
+          </div>
+        `;
+        
+        el.onclick = () => showProjectModal(proj);
+        container.appendChild(el);
+      });
+    }
+
+    function showProjectModal(proj) {
+      const modal = document.createElement('div');
+      modal.className = 'fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4';
+      
+      const backdrop = document.createElement('div');
+      backdrop.className = 'absolute inset-0';
+      backdrop.onclick = () => modal.remove();
+
+      const content = document.createElement('div');
+      content.className = 'relative bg-zinc-900 border border-zinc-700 rounded-2xl max-w-lg w-full p-5 text-sm';
+      content.onclick = (e) => e.stopImmediatePropagation();
+      
+      content.innerHTML = `
+        <div class="flex justify-between items-start">
+          <div>
+            <div class="uppercase tracking-widest text-xs text-blue-400 mb-1">PROJECT / AGENT</div>
+            <div class="text-xl font-semibold">${escapeHtml(proj.name || 'Unnamed')}</div>
+          </div>
+          <button class="text-xl leading-none px-1">×</button>
+        </div>
+        
+        ${proj.custom_personality ? `
+          <div class="mt-4">
+            <div class="uppercase text-xs tracking-widest mb-1 text-zinc-400">Custom Personality</div>
+            <div class="bg-zinc-950 border border-zinc-800 p-3 rounded-xl whitespace-pre-wrap text-zinc-300 text-xs leading-relaxed max-h-[240px] overflow-auto">${escapeHtml(proj.custom_personality)}</div>
+          </div>` : ''}
+        
+        <div class="grid grid-cols-2 gap-3 text-xs mt-4">
+          <div><span class="text-zinc-400">Preferred model:</span> <span class="font-medium">${proj.preferred_model || '—'}</span></div>
+          <div><span class="text-zinc-400">Created:</span> <span>${proj.create_time ? new Date(proj.create_time).toLocaleDateString() : '—'}</span></div>
+        </div>
+      `;
+      
+      const closeBtn = content.querySelector('button');
+      closeBtn.onclick = () => modal.remove();
+      
+      modal.appendChild(backdrop);
+      modal.appendChild(content);
+      document.body.appendChild(modal);
+    }
+
+    function renderConversations(convs) {
+      const container = document.getElementById('conversations-list');
+      container.innerHTML = '';
+      filteredConvs = convs;
+
+      if (!convs.length) {
+        container.innerHTML = `<div class="p-4 text-xs text-zinc-500">No matching conversations.</div>`;
+        return;
+      }
+
+      convs.forEach(conv => {
+        const msgCount = conv.messages.length;
+        const hasMedia = conv.messages.some(m => m.attachments && m.attachments.length);
+        
+        const mediaCount = conv.messages.reduce((sum, m) => sum + (m.attachments ? m.attachments.length : 0), 0);
+        
+        const el = document.createElement('div');
+        el.className = `conv-item px-3 py-2.5 mx-0.5 rounded-xl flex items-start gap-x-2.5 cursor-pointer text-sm ${currentConvId === conv.id ? 'active' : ''}`;
+        el.dataset.id = conv.id;
+        
+        const dateStr = conv.create_time ? new Date(conv.create_time).toLocaleDateString(undefined, {month:'short', day:'numeric'}) : '';
+        
+        el.innerHTML = `
+          <div class="flex-1 min-w-0 pt-px">
+            <div class="flex items-baseline justify-between gap-x-2">
+              <div class="font-medium truncate leading-tight">${escapeHtml(conv.title)}</div>
+              ${dateStr ? `<div class="text-[10px] flex-shrink-0 text-zinc-500">${dateStr}</div>` : ''}
+            </div>
+            <div class="flex items-center gap-x-2 mt-1">
+              <span class="text-xs text-zinc-400">${msgCount} msgs</span>
+              ${hasMedia ? `
+                <span class="inline-flex items-center gap-x-1 text-[10px] px-1.5 py-px bg-zinc-800 rounded text-emerald-400">
+                  <i class="fa-solid fa-image text-[9px]"></i>
+                  <span>${mediaCount}</span>
+                </span>` : ''}
+            </div>
+          </div>
+        `;
+        
+        // Use data attribute; click handled by delegation below for robustness
+        container.appendChild(el);
+      });
+      
+      document.getElementById('conv-count').textContent = convs.length;
+    }
+
+    // Event delegation for conversation clicks (more reliable than per-element onclick)
+    (function setupConvClickDelegation() {
+      const list = document.getElementById('conversations-list');
+      if (list) {
+        list.addEventListener('click', function(e) {
+          const item = e.target.closest('.conv-item');
+          if (item && item.dataset.id) {
+            console.log('Clicked conv (delegated):', item.dataset.id);
+            selectConversation(item.dataset.id);
+          }
+        });
+      }
+    })();
+
+    function filterConversations() {
+      const q = document.getElementById('search-input').value.toLowerCase().trim();
+      const onlyMedia = document.getElementById('media-only').checked;
+      
+      let filtered = DATA.conversations;
+      
+      if (q) {
+        filtered = filtered.filter(c => 
+          (c.title || '').toLowerCase().includes(q) ||
+          c.messages.some(m => (m.content || '').toLowerCase().includes(q))
+        );
+      }
+      
+      if (onlyMedia) {
+        filtered = filtered.filter(c => 
+          c.messages.some(m => m.attachments && m.attachments.length > 0)
+        );
+      }
+      
+      renderConversations(filtered);
+    }
+
+    function selectConversation(convId) {
+      console.log('selectConversation called with', convId);
+      stopSpeaking(); // stop any ongoing audio when switching chats
+      currentConvId = convId;
+      
+      // Update active state
+      document.querySelectorAll('#conversations-list .conv-item').forEach(el => {
+        el.classList.toggle('active', el.dataset.id === convId);
+      });
+      
+      const conv = DATA.conversations.find(c => c.id === convId);
+      console.log('Found conv?', !!conv);
+      if (!conv) return;
+
+      currentMessages = conv.messages || [];
+      
+      // Header
+      document.getElementById('chat-title').textContent = conv.title || '(untitled)';
+      const metaEl = document.getElementById('chat-meta');
+      const date = conv.create_time ? new Date(conv.create_time).toLocaleString() : '';
+      const msgCount = conv.messages.length;
+      metaEl.innerHTML = `
+        <span>${date}</span>
+        <span class="grok-tag">${msgCount} turns</span>
+        ${conv.project_id ? `<span class="grok-tag">project</span>` : ''}
+      `;
+
+      // Show TTS controls
+      const ttsControls = document.getElementById('tts-controls');
+      if (ttsControls) {
+        ttsControls.classList.remove('hidden');
+        loadElevenLabsSettings();
+      }
+      
+      // Messages
+      const container = document.getElementById('messages-container');
+      container.innerHTML = '';
+      document.getElementById('empty-state').style.display = 'none';
+      console.log('Rendering', conv.messages.length, 'messages for', convId);
+      
+      conv.messages.forEach((msg) => {
+        const isUser = msg.role === 'user';
+        
+        const msgWrap = document.createElement('div');
+        msgWrap.className = `message`;
+        msgWrap.style.maxWidth = '75%';
+        msgWrap.style.width = '100%';
+        if (isUser) msgWrap.style.marginLeft = 'auto';
+        else msgWrap.style.marginLeft = '0';
+        
+        const inner = document.createElement('div');
+        inner.style.maxWidth = isUser ? '72%' : '78%';
+        inner.style.width = '100%';
+        
+        // header row
+        const header = document.createElement('div');
+        header.style.display = 'flex';
+        header.style.alignItems = 'center';
+        header.style.gap = '0.5rem';
+        header.style.marginBottom = '0.25rem';
+        header.style.paddingLeft = '0.25rem';
+        header.style.paddingRight = '0.25rem';
+        if (isUser) header.style.justifyContent = 'flex-end';
+        
+        const roleSpan = document.createElement('span');
+        roleSpan.style.fontSize = '0.75rem';
+        roleSpan.style.fontWeight = '500';
+        roleSpan.style.color = isUser ? '#93c5fd' : '#a1a1aa';
+        roleSpan.textContent = isUser ? 'You' : 'Grok';
+        header.appendChild(roleSpan);
+        
+        if (msg.model) {
+          const modelTag = document.createElement('span');
+          modelTag.className = 'grok-tag';
+          modelTag.style.fontSize = '9px';
+          modelTag.textContent = msg.model;
+          header.appendChild(modelTag);
+        }
+        
+        if (msg.timestamp) {
+          const timeSpan = document.createElement('span');
+          timeSpan.className = 'msg-timestamp';
+          timeSpan.style.marginLeft = 'auto';
+          timeSpan.textContent = new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+          header.appendChild(timeSpan);
+        }
+        
+        const rawText = (msg.content || '').trim();
+        if (rawText) {
+          const speakBtn = document.createElement('button');
+          speakBtn.className = 'speak-btn ml-1 px-0.5';
+          speakBtn.title = 'Read aloud';
+          speakBtn.innerHTML = '<i class="fa-solid fa-volume-up"></i>';
+          speakBtn.onclick = () => speakText(rawText);
+          header.appendChild(speakBtn);
+        }
+        
+        inner.appendChild(header);
+        
+        // bubble
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${isUser ? 'user' : 'assistant'}`;
+        
+        if (rawText) {
+          const textDiv = document.createElement('div');
+          textDiv.innerHTML = escapeHtml(rawText).replace(/\n/g, '<br>');
+          bubble.appendChild(textDiv);
+        }
+        
+        // attachments
+        if (msg.attachments && msg.attachments.length) {
+          const grid = document.createElement('div');
+          grid.className = 'media-grid';
+          
+          msg.attachments.forEach((att) => {
+            const asset = DATA.asset_info ? DATA.asset_info[att.id] : null;
+            const hasAsset = asset && asset.path;
+            
+            const item = document.createElement('div');
+            item.className = 'media-item';
+            
+            if (hasAsset) {
+              const fullSrc = asset.path;
+              if (asset.type === 'video') {
+                const vid = document.createElement('video');
+                vid.src = fullSrc;
+                vid.className = 'pointer-events-none';
+                vid.muted = true;
+                item.appendChild(vid);
+                
+                const label = document.createElement('div');
+                label.className = 'media-label flex items-center gap-x-1';
+                label.innerHTML = '<i class="fa-solid fa-video"></i><span>VIDEO</span>';
+                item.appendChild(label);
+                
+                item.onclick = () => showLightbox('video', fullSrc, att.prompt || '');
+              } else if (asset.type === 'image') {
+                const img = document.createElement('img');
+                img.src = fullSrc;
+                img.alt = 'attachment';
+                img.loading = 'lazy';
+                item.appendChild(img);
+                
+                if (att.kind === 'generated') {
+                  const label = document.createElement('div');
+                  label.className = 'media-label';
+                  label.textContent = 'GENERATED';
+                  item.appendChild(label);
+                }
+                
+                item.onclick = () => showLightbox('image', fullSrc, att.prompt || '');
+              } else {
+                item.textContent = `Attachment: ${att.id.slice(0,8)}...`;
+                item.style.cssText = 'padding:4px; font-size:10px; text-align:center;';
+              }
+            } else {
+              item.className += ' bg-zinc-900 border border-zinc-700 flex flex-col p-3 text-xs';
+              const pShort = att.prompt ? escapeHtml(att.prompt.slice(0, 110) + '…') : '';
+              item.innerHTML = `
+                <div class="flex-1 flex flex-col justify-center items-center text-center">
+                  <i class="fa-solid ${att.kind === 'generated' ? 'fa-magic' : 'fa-paperclip'} text-xl mb-2 text-zinc-400"></i>
+                  <div class="font-medium">${att.kind === 'generated' ? 'Generated image' : 'Attached media'}</div>
+                  ${att.prompt ? `<div class="text-zinc-400 mt-1 text-[10px] line-clamp-2">${pShort}</div>` : ''}
+                </div>
+                <div class="text-[9px] text-zinc-500 mt-1">not in this export</div>
+              `;
+              item.onclick = () => showGeneratedPlaceholder(att.id, att.prompt || '');
+            }
+            
+            grid.appendChild(item);
+          });
+          
+          bubble.appendChild(grid);
+        }
+        
+        inner.appendChild(bubble);
+        msgWrap.appendChild(inner);
+        container.appendChild(msgWrap);
+      });
+      
+      // Scroll to bottom
+      container.scrollTop = container.scrollHeight;
+      console.log('Done rendering messages, container children:', container.children.length);
+      // Debug visibility
+      if (container.children.length > 0) {
+        container.style.border = '2px solid #0ea5e9';
+        container.style.background = '#0f0f12';
+        container.style.minHeight = '300px';
+        // Force show any children
+        Array.from(container.children).forEach((ch, i) => {
+          if (i < 3) ch.style.border = '1px solid #22c55e';
+        });
+      } else {
+        container.style.border = '3px solid red';
+        container.innerHTML = '<div style="color:red;padding:20px">NO MESSAGE ELEMENTS WERE CREATED - check console for errors</div>';
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function showLightbox(kind, src, prompt) {
+      const lb = document.getElementById('lightbox');
+      const content = document.getElementById('lightbox-content');
+      content.innerHTML = '';
+      
+      if (kind === 'image') {
+        content.innerHTML = `
+          <img src="${src}" class="max-h-[85vh] max-w-[90vw] object-contain rounded-2xl" />
+          ${prompt ? `<div class="p-3 text-xs text-zinc-400 border-t border-zinc-800 bg-zinc-950">${prompt}</div>` : ''}
+        `;
+      } else if (kind === 'video') {
+        content.innerHTML = `
+          <video src="${src}" controls autoplay class="max-h-[82vh] max-w-[90vw] rounded-2xl"></video>
+          ${prompt ? `<div class="p-3 text-xs text-zinc-400 border-t border-zinc-800 bg-zinc-950">${prompt}</div>` : ''}
+        `;
+      }
+      
+      lb.classList.remove('hidden');
+      lb.classList.add('flex');
+    }
+
+    function showGeneratedPlaceholder(id, prompt) {
+      const lb = document.getElementById('lightbox');
+      const content = document.getElementById('lightbox-content');
+      content.innerHTML = `
+        <div class="p-8 text-center max-w-md">
+          <i class="fa-solid fa-magic text-4xl text-violet-400 mb-4"></i>
+          <div class="font-semibold mb-2">Generated image (not included in this export)</div>
+          <div class="text-xs bg-zinc-950 border border-zinc-800 p-3 rounded-xl text-left text-zinc-300 font-mono">
+            ${prompt || 'Prompt unavailable'}
+          </div>
+          <div class="text-[10px] text-zinc-500 mt-3">Asset ID: ${id}</div>
+        </div>
+      `;
+      lb.classList.remove('hidden');
+      lb.classList.add('flex');
+    }
+
+    function closeLightbox() {
+      const lb = document.getElementById('lightbox');
+      lb.classList.remove('flex');
+      lb.classList.add('hidden');
+      const content = document.getElementById('lightbox-content');
+      content.innerHTML = '';
+    }
+
+    // Attach outside click for lightbox (once)
+    (function setupLightbox() {
+      const lb = document.getElementById('lightbox');
+      if (lb) {
+        lb.addEventListener('click', (e) => {
+          if (e.target === lb) closeLightbox();
+        });
+      }
+    })();
+
+    function exportCurrentConversation() {
+      if (!currentConvId || !DATA) return;
+      const conv = DATA.conversations.find(c => c.id === currentConvId);
+      if (!conv) return;
+      
+      const blob = new Blob([JSON.stringify(conv, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `grok-conv-${conv.title.slice(0,40).replace(/[^a-z0-9]/gi,'_')}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function showRawData() {
+      if (!currentConvId || !DATA) {
+        alert('Select a conversation first');
+        return;
+      }
+      const conv = DATA.conversations.find(c => c.id === currentConvId);
+      const w = window.open('', '_blank');
+      w.document.write(`<pre style="background:#111;color:#ddd;padding:20px;white-space:pre-wrap;font-family:monospace;font-size:12px;">${escapeHtml(JSON.stringify(conv, null, 2))}</pre>`);
+    }
+
+    // === ElevenLabs Text-to-Speech (Read Aloud) ===
+    function saveElevenLabsVoice(voiceId) {
+      elevenLabsVoiceId = voiceId || '21m00Tcm4TlvDq8ikWAM';
+      localStorage.setItem('elevenlabs_voice_id', elevenLabsVoiceId);
+    }
+
+    function showElevenLabsInfo() {
+      const keyStatus = (window.ELEVENLABS_API_KEY && window.ELEVENLABS_API_KEY.length > 5)
+        ? "Loaded successfully from PowerShell SecretStore (this session only)"
+        : "NOT loaded — make sure the key exists in your SecretStore when you launch the viewer";
+      alert(
+        "ElevenLabs Read Aloud\n\n" +
+        "API Key status: " + keyStatus + "\n\n" +
+        "The key is fetched ONLY from PowerShell SecretStore by launch_viewer.py " +
+        "at server start time and injected in-memory. " +
+        "It is never written to files or stored in localStorage/browser."
+      );
+    }
+
+    function loadElevenLabsSettings() {
+      const voiceInput = document.getElementById('eleven-voice');
+      if (voiceInput) {
+        voiceInput.value = elevenLabsVoiceId;
+      }
+    }
+
+    function speakText(text) {
+      return new Promise((resolve, reject) => {
+        const key = window.ELEVENLABS_API_KEY || elevenLabsApiKey;
+        if (!key) {
+          alert("No ElevenLabs API key available.\n\n" +
+                "It must be stored in your PowerShell SecretStore.\n" +
+                "Run the viewer using launch_viewer.py so the key can be injected.");
+          return resolve();
+        }
+
+        const voiceId = elevenLabsVoiceId || '21m00Tcm4TlvDq8ikWAM';
+        const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+        fetch(url, {
+          method: 'POST',
+          headers: {
+            'Accept': 'audio/mpeg',
+            'Content-Type': 'application/json',
+            'xi-api-key': key
+          },
+          body: JSON.stringify({
+            text: text,
+            model_id: 'eleven_turbo_v2_5',
+            voice_settings: {
+              stability: 0.5,
+              similarity_boost: 0.75,
+              style: 0.0,
+              use_speaker_boost: true
+            }
+          })
+        })
+        .then(res => {
+          if (!res.ok) {
+            return res.text().then(t => { throw new Error(`ElevenLabs ${res.status}: ${t || res.statusText}`); });
+          }
+          return res.blob();
+        })
+        .then(blob => {
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+
+          stopSpeaking();
+          currentAudio = audio;
+
+          audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
+            currentAudio = null;
+            resolve();
+          };
+          audio.onerror = (e) => {
+            URL.revokeObjectURL(audioUrl);
+            currentAudio = null;
+            reject(e);
+          };
+
+          audio.play().catch(reject);
+        })
+        .catch(err => {
+          console.error(err);
+          alert('ElevenLabs error: ' + err.message);
+          resolve(); // continue queue anyway
+        });
+      });
+    }
+
+    let currentAudio = null;
+
+    function speakFromButton(btnEl) {
+      // For per-message, we use a data attr or we can store text differently now
+      const text = btnEl.getAttribute('data-text') || btnEl.dataset.text || '';
+      if (text) speakText(text);
+    }
+
+    function stopSpeaking() {
+      if (currentAudio) {
+        currentAudio.pause();
+        currentAudio = null;
+      }
+      speechQueue = [];
+      // clear any pending
+    }
+
+    function playConversation() {
+      if (!currentMessages || !currentMessages.length) return;
+      stopSpeaking();
+
+      speechQueue = currentMessages
+        .filter(m => (m.content || '').trim())
+        .map(m => {
+          const role = m.role === 'assistant' ? 'Grok' : 'You';
+          return `${role}: ${m.content.trim()}`;
+        });
+
+      if (!speechQueue.length) return;
+
+      speakNextInQueue();
+    }
+
+    async function speakNextInQueue() {
+      if (!speechQueue.length) return;
+      const text = speechQueue.shift();
+      try {
+        await speakText(text);
+      } catch (e) {}
+      // continue to next
+      speakNextInQueue();
+    }
+
+    // Keyboard nav on list
+    function selectNextPrev(delta) {
+      if (!filteredConvs.length) return;
+      const idx = filteredConvs.findIndex(c => c.id === currentConvId);
+      let next = (idx === -1 ? 0 : idx + delta);
+      if (next < 0) next = filteredConvs.length - 1;
+      if (next >= filteredConvs.length) next = 0;
+      selectConversation(filteredConvs[next].id);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown' && document.activeElement.id !== 'search-input') {
+        e.preventDefault();
+        selectNextPrev(1);
+      }
+      if (e.key === 'ArrowUp' && document.activeElement.id !== 'search-input') {
+        e.preventDefault();
+        selectNextPrev(-1);
+      }
+    });
+
+    function runUIVerification() {
+      const results = [];
+      const log = (msg) => { console.log('[VERIFY]', msg); results.push(msg); };
+      
+      log('=== UI Self-Verification ===');
+      
+      // 1. DATA loaded?
+      if (window.DATA && Array.isArray(DATA.conversations)) {
+        log('DATA loaded: ' + DATA.conversations.length + ' conversations');
+      } else {
+        log('ERROR: DATA not loaded or invalid');
+      }
+      
+      // 2. Sidebar items?
+      const listItems = document.querySelectorAll('#conversations-list .conv-item');
+      log('Sidebar items in DOM: ' + listItems.length);
+      
+      // 3. Key elements exist?
+      const needed = ['messages-container', 'chat-title', 'conversations-list', 'empty-state'];
+      needed.forEach(id => {
+        const el = document.getElementById(id);
+        log(id + ' exists: ' + !!el);
+      });
+      
+      // 4. Try to select first conversation and count rendered messages
+      if (DATA && DATA.conversations.length > 0) {
+        const firstId = DATA.conversations[0].id;
+        try {
+          selectConversation(firstId);
+          const msgEls = document.querySelectorAll('#messages-container .message');
+          log('After forcing select first conv, message elements rendered: ' + msgEls.length);
+          // Show a summary
+          const titleEl = document.getElementById('chat-title');
+          log('Current title shown: ' + (titleEl ? titleEl.textContent : 'none'));
+        } catch(e) {
+          log('ERROR during test select: ' + e.message);
+          console.error(e);
+        }
+      }
+      
+      alert('Verification complete. See Console (F12) for detailed logs.\n\n' + results.join('\n'));
+    }
+
+    // Auto-run a silent verification on load for debugging
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        try {
+          if (window.DATA && DATA.conversations && DATA.conversations.length > 0) {
+            console.log('[AUTO-VERIFY] Data has', DATA.conversations.length, 'convs. Sidebar items:', document.querySelectorAll('#conversations-list .conv-item').length);
+          }
+        } catch(e) {}
+      }, 1500);
+    });
+
+    // Boot
+    window.addEventListener('DOMContentLoaded', () => {
+      loadData().catch(err => {
+        document.body.innerHTML = `<div style="padding:2rem;color:#f77">Failed to load data.json<br><pre>${err}</pre></div>`;
+      });
+    });
+  </script>
+</body>
+</html>
