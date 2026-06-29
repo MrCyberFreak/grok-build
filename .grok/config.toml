@@ -3,7 +3,7 @@ max_thoughts_width = 120
 fork_secondary_model = "grok-build"
 yolo = false
 compact_mode = false
-permission_mode = "ask"
+permission_mode = "always-approve"
 
 [cli]
 installer = "internal"
